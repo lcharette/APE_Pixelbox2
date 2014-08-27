@@ -1,4 +1,7 @@
 ## Pixelbox 2 - An APE Server Demo
+
+!!! THIS IS STILL A WORK IN PROGRESS. EXPECT STUFF NOT TO WORK !!!
+
 Pixelbox 2 is based on the initial [APE Server](https://github.com/APE-Project/APE_Server) Pixelbox demo. It was created as a modern remplacement to the old demo on the [official APE Project website](http://ape-project.org/).
 
 The new version was created with the goal to serve as an example of how an existing code or app could be easilly extented using APE to provide new features and realtime interactivity. In this repository, you'll the file ``pixelbox.html`` which is vanilla version of Pixelbox running without APE. The files ``pixelbox-APS.html`` and ``pixelbox-JSF.html`` are interactive version of the same basic javascript app using the power of [APE Server](https://github.com/APE-Project/APE_Server) to allow multiple client to draw on the same canvas in **realtime**.
