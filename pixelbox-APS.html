@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <title>APE Pixelbox Demo (APS)</title>
+  <meta name="viewport" content="width=device-width">
+
+  <!-- Include jQuery -->
+  <script src="//code.jquery.com/jquery-1.11.0.min.js"></script>
+
+  <!-- Include colpick (color picker) -->
+  <script src="js/colpick.js"></script>
+  <link href="css/colpick.css" rel="stylesheet">
+
+  <!-- Include jcanvas (Canva manipulation framework) -->
+  <script src="js/jcanvas.min.js"></script>
+
+  <!-- Include demo js helper and css files -->
+  <script src="js/pixelbox.js"></script>
+  <link rel="stylesheet" href="css/pixelbox.css">
+
+  <!-- Include APE Client Framework -->
+  <script src="APS/ApePubSub.min.js"></script>
+
+</head>
+
+<body>
+
+	<!-- HTML SOURCE -->
+
+	<table id="PixelboxContainer">
+	    <tr>
+	        <td>
+	            
+	            <!-- My Color -->
+	            <div class="panel" id="MyColorPanel">
+	                <div class="panel-heading">My Color</div>
+	                <div class="panel-body" align="center">
+	                    <div id="myColorPicker" align="center"></div>
+	                    <button class="btn btn-primary btn-sm" id="RandomColorBtn">Random Color</button><br />
+	                    <button class="btn btn-primary btn-sm" onclick="MyPixelbox.openImage();">Open image</button><br />
+	                    <button class="btn btn-primary btn-sm" onclick="MyPixelbox.download();">Download Canvas</button><br />
+	                    <button class="btn btn-primary btn-sm" onclick="saveDraw();">Save Canvas to Gallery</button><br />
+	                </div>
+	            </div>
+	            
+	            <!-- Userlist -->
+	            <div class="panel" id="UserlistPanel">
+	                <div class="panel-heading">Userlist</div>
+	                <div class="panel-body" align="center">
+	                    <div id="userTemplate" style="display: none;">
+	                        <div class="color"></div>
+	                        <span class="username"></span>
+	                    </div>
+	                </div>
+	            </div>
+	        
+	        </td>
+	        <td>
+	            
+	            <!-- Canvas -->
+	            <div class="panel" id="CanvasPanel">
+	                <div class="panel-heading">Canvas</div>
+	                <div class="panel-body">
+	                    <!-- N.B.: Canvas size controled by APE -->
+	                    <canvas id="PixelboxCanvas"></canvas>
+	                </div>
+	            </div>
+	            
+	        </td>
+	    </tr>
+	    <tr>
+	        <td colspan="2">
+	            
+	            <!-- Gallery -->
+	            <div class="panel">
+	                <div class="panel-heading">Gallery</div>
+	                <div class="panel-body" align="center" id="GalleryContainer">
+	                    <small>Loading Gallery</small>
+	                </div>
+	            </div>
+	            
+	        </td>
+	    </tr>
+	</table>
+
+
+  <!-- APE JAVASCRIPT SOURCE -->
+  <script type="text/javascript">
+
+    //------------------------//
+    //---- Pixelbox setup ----//
+    //------------------------//
+
+    //Setup Pixelbox.
+    //We link the "drawCallback" to the "sendDraw"
+    //function so we can send pixelbox draw event to APE
+    var MyPixelbox = new Pixelbox({
+      canvas: $("#PixelboxCanvas"),
+      drawCallback: sendDraw
+    });
+
+    //Instantiate APE Client (without session support)
+    var client = new APS('ape.local', null, {
+      session: true,
+      debug: true
+    });
+
+    //Set this user properties
+    client.user = {
+      name: rand_chars(5),     //Set a random username
+      color: getRandomColor()  //Start with a random color
+    };
+
+    //Listen for user color update (any user, including ourself)
+    client.on('usercolorUpdate', function(color, user) {
+
+      //Update the color in the list
+      update_user_color(user.pubid, color);
+
+      //if the user is ourself, but from another sessions,
+      //we update our color picker
+      if (user.pubid == client.user.pubid) {
+
+        //Update Pixelbox
+        if (MyPixelbox != null) {
+          MyPixelbox.userColor = color;
+        }
+
+        //We set our color in the picker.
+        $("#myColorPicker").colpickSetColor(color);
+      }
+    });
+
+    //Events the "pixelbox" channel will listen to
+    var Events = {
+
+      //Create a new user on join
+      join: function(user, channel) {
+        createUser(user); //Add the new user to the DOM using the helper function
+      },
+
+      //Delete a user when he leave
+      left: function(user, channel) {
+        delete_user(user.pubid); //We delete the user from the DOM
+      },
+
+      //This function is called when someone draw a pixel on the cavas
+      pixelbox_newPixel: function(data, from) {
+        MyPixelbox.drawPixel(data.x, data.y, data.color);
+      }
+
+    };
+
+    //Subscribe to the Pixelbox channel. New
+    client.sub("pixelbox", Events, function(user, channel) {
+
+      //Set our color in the picker. This color is randomly chosen
+      //during connexion or is sent to us by APE if we restore a session
+      $("#myColorPicker").colpickSetColor(user.color);
+      MyPixelbox.userColor = user.color;
+
+      //When we are logged to the channel, we create the DOM element for every users
+      //already in the channel
+      for (var id in channel.users) {
+        createUser(channel.users[id]);
+      }
+
+      //Retrive the grid info from the channel
+      //The callback will be handled in 'on rawpixelbox_grid' below.
+      client.sendCmd('pixelbox_getGrid');
+
+    });
+
+    //APS return the current grid on the main client object
+    //and not on the channel (only us need that info right now)
+    client.on('rawpixelbox_grid', function(data) {
+
+      //Overwirte the Pixelbox options with the infos the server gave us
+      //This make sure every user have the same Canvas sie, etc.
+      MyPixelbox.setWidth(data.width);
+      MyPixelbox.setHeight(data.height);
+      MyPixelbox.option.defaultColor = data.defaultColor;
+      MyPixelbox.option.pixelSize = data.pixelSize;
+
+      //Setup the grid
+      MyPixelbox.drawCanvasFromGrid(data.grid);
+    })
+
+
+    /**
+     * sendDraw function.
+     *
+     * Draw callback. Pixelbox send a callback
+     * on this function when a pixel is drawn.
+     * We'll use it to send a notification to APE
+     *
+     * @access public
+     * @param mixed posX
+     * @param mixed posY
+     * @param mixed ps
+     * @param mixed color
+     * @return void
+     */
+    function sendDraw(posX, posY, ps, color) {
+
+      //Send the draw to APE for the other clients. APE will store the pixel for newcomers (see SSJS)
+      client.sendCmd('pixelbox_drawPixel', {
+        channel: 'pixelbox',
+        data: {
+          x: posX,
+          y: posY,
+          color: color
+        }
+      });
+    }
+
+
+    /**
+     * updateColor function.
+     *
+     * When our color is changed, colpick (The color Picker) use this callback.
+     * We make use of it to update our color in Pixelbox
+     * We also use it to tell the other APE clients we just changed color
+     * And change the color in our Pixelbox tool.
+     *
+     * @access public
+     * @param mixed color
+     * @return void
+     */
+    function updateColor(color) {
+
+      //Update Pixelbox. We make extra carefull Pixelbox is declared
+      if (MyPixelbox != null) {
+        MyPixelbox.userColor = color;
+      }
+
+      //Update APE user property
+      client.user.update('color', color);
+    }
+
+    /**
+     * createUser function.
+     *
+     * This function is called to create a new user
+     * in the userlist
+     *
+     * @access public
+     * @param mixed userObject
+     * @return void
+     */
+    function createUser(userObject) {
+
+      //Duplicate the user div template and set the id tag
+      var temp = $("#userTemplate").clone().attr("id", userObject.pubid);
+
+      //Set the duplicate color
+      $(temp).find('.color').css('background-color', "#" + userObject.color);
+
+      //Set the duplicate name. We show "YOU" is it is the user div
+      if (userObject.pubid == client.user.pubid) {
+        $(temp).find('.username').text('YOU');
+      } else {
+        $(temp).find('.username').text(userObject.name);
+      }
+
+      //The div is hidden by default. We show it.
+      $(temp).show();
+
+      //Append the duplicate to the master div
+      $('#UserlistPanel > .panel-body').append(temp);
+    }
+
+    /**
+     * update_user_color function.
+     * This function create a user in the userlist
+     *
+     * @access public
+     * @param mixed pubid
+     * @param mixed color
+     * @return void
+     */
+    function update_user_color(pubid, color) {
+      $("#UserlistPanel > .panel-body").find("#" + pubid).find(".color").css('background-color', "#" + color);
+    }
+
+    /**
+     * delete_user function.
+     * This function delete a user from the userlist
+     * based on his unique ID (pubid)
+     *
+     * @access public
+     * @param mixed pubid
+     * @return void
+     */
+    function delete_user(pubid) {
+      $("#UserlistPanel > .panel-body").find("#" + pubid).remove();
+    }
+
+    /**
+     * saveDraw function.
+     *
+     * This function retreive the canvas raw image
+     * Base64 encoded string and pass it to the server
+     * to be saved in a file
+     *
+     * @access public
+     * @return void
+     */
+    function saveDraw() {
+      var imgData = MyPixelbox.getImageData();
+      client.sendCmd('pixelbox_savedraw', {
+        data: imgData
+      });
+    }
+
+    //TODO: Get Images from MySQL and create gallery
+
+
+
+    //----------------------------//
+    //---- Color Picker setup ----//
+    //----------------------------//
+
+    $(document).ready(function() {
+
+      /*
+       * Setup the color picker
+       */
+      $("#myColorPicker").colpick({
+        flat: true,
+        layout: 'hex',
+        submit: 0,
+        onChange: function(hsb, hex, rgb, el, bySetColor) {
+
+          //The callback is only called then the color
+          //is changed by the user, not by JavaScript
+          if (!bySetColor) {
+            updateColor(hex);
+          }
+        }
+      });
+
+      /*
+       * Select a random color when the button is clicked
+       */
+      $("#RandomColorBtn").on('click', function() {
+
+        //Select a random color
+        var color = getRandomColor();
+
+        //Set the color picker on that color
+        $("#myColorPicker").colpickSetColor(color);
+
+        //Update the color property using callback
+        updateColor(color);
+      });
+    });
+
+    //------------------------//
+    //---- Misc functions ----//
+    //------------------------//
+
+    /**
+     * rand_chars function.
+     * This function is used to create a unique
+     * username of a given lenght.
+     *
+     * @access public
+     * @param mixed plength
+     * @return void
+     */
+    function rand_chars(length, keys) {
+      var chars = keys || "0123456789ABCDEFGHIJKLMNOPQRSTUVWXTZabcdefghiklmnopqrstuvwxyz";
+      var string_length = length || 32;
+      var randomstring = '';
+      for (var i = 0; i < string_length; i++) {
+        var rnum = Math.floor(Math.random() * chars.length);
+        randomstring += chars.substring(rnum, rnum + 1);
+      }
+      return randomstring;
+    }
+
+    /**
+     * getRandomColor function.
+     * This function return a random color
+     * (Hex format)
+     *
+     * @access public
+     * @return void
+     */
+    function getRandomColor() {
+      return rand_chars(6, '0123456789ABCDEF');
+    }
+
+  </script>
+
+</body>
+
+</html>

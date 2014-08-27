@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+        <title>APE Pixelbox Demo (Vanilla)</title>
+        <meta name="viewport" content="width=device-width">
+		
+		<!-- Include jQuery -->
+		<script src="//code.jquery.com/jquery-1.11.0.min.js"></script>
+		
+		<!-- Include colpick (color picker) -->
+		<script src="js/colpick.js"></script>
+		<link href="css/colpick.css" rel="stylesheet">
+		
+		<!-- Include jcanvas (Canva manipulation framework) -->
+		<script src="js/jcanvas.min.js"></script>
+		
+		<!-- Include demo js helper and css files -->
+		<script src="js/pixelbox.js"></script>
+		<link rel="stylesheet" href="css/pixelbox.css">
+
+		    
+    </head>
+    <body>
+
+		<!-- HTML SOURCE -->
+        
+        <div id="PixelboxContainer">
+        
+        	<!-- Canvas -->
+			<div class="panel" id="CanvasPanel">
+				<div class="panel-heading">Canvas</div>
+				<div class="panel-body">
+					
+					<!-- N.B.: Canvas size controled by APE -->
+					<canvas id="PixelboxCanvas"></canvas>
+				
+				</div>
+			</div>
+        
+			<!-- My Color -->
+			<div class="panel" id="MyColorPanel">
+				<div class="panel-heading">My Color</div>
+				<div class="panel-body" align="center">
+					
+					<div id="myColorPicker" align="center"></div>
+					<button id="RandomColorBtn" class="btn btn-primary btn-sm">Random Color</button>
+					
+				</div>
+			</div>
+						
+        </div>
+        
+		
+		<!-- APE JAVASCRIPT SOURCE -->
+		<script type="text/javascript">
+		
+			$(document).ready(function() {
+			    
+			    //Setup Pixelbox.
+				var MyPixelbox = new Pixelbox({
+					canvas: $("#PixelboxCanvas"),
+				});
+				
+				//Set our color in the picker. This color is randomly chosen 
+				var color = getRandomColor();
+				$("#myColorPicker").colpickSetColor(color);
+				MyPixelbox.userColor = color;
+			});
+			
+			
+			/**
+			 * updateColor function.
+			 *
+			 * When our color is changed, colpick (The color Picker) use this callback.
+			 *
+			 * @access public
+			 * @param mixed color
+			 * @return void
+			 */
+			function updateColor(color) {
+				
+				//Update Pixelbox. We make extra carefull Pixelbox is declared
+				if (MyPixelbox != null) {
+					MyPixelbox.userColor = color;
+				}
+			}
+		    
+		</script>
+
+    </body>
+</html>
